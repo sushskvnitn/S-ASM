@@ -5,7 +5,8 @@ import time
 import random
 
 def run_command(cmd):
-    delay = random.uniform(0.5, 2.0)
+    delay = random.uniform(0.3, 0.8) # Simulate network delay 
+    # between 0.3 and 0.8 seconds
     time.sleep(delay)
     try:
         output = subprocess.check_output(cmd, shell=True, text=True)

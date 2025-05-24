@@ -14,8 +14,6 @@ celery.conf.update(
     enable_utc=True,
     task_default_queue='scan_tasks',
     worker_concurrency=4,
-    task_soft_time_limit=600,
-    task_time_limit=660,
-    result_expires=3600,
-    broker_transport_options={'visibility_timeout': 3600},
+    task_soft_time_limit=1800,
+    task_time_limit=1900,
 )
