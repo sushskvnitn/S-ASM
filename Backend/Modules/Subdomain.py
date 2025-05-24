@@ -1,12 +1,9 @@
 from Core.Utils import run_command, save_output
 
 def subdomain_scan(target):
-    print(f"[+] Running subfinder on {target}")
-    cmd = f"subfinder -d {target} -silent"
+    print(f"[+] Running Amass on {target}")
+    cmd = f"amass enum -passive -d {target}"
     output = run_command(cmd)
-    save_output("subfinder", target, output.splitlines())
-    return output.splitlines()
-
-
-
-
+    lines = output.splitlines()
+    save_output("amass", target, lines)
+    return lines

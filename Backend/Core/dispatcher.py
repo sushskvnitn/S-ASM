@@ -1,12 +1,5 @@
-from Core.Utils import is_domain
-from Modules.Subdomain import subdomain_scan
+from tasks.scanner_tasks import run_full_scan
 
 def run_tasks(target):
-    results = {}
-
-    if is_domain(target):
-        results['subdomains'] = subdomain_scan(target)
-
-    # Future: Add dirbuster, nuclei, etc.
-
-    return results
+    task = run_full_scan.delay(target)
+    return {"task_id": task.id}
