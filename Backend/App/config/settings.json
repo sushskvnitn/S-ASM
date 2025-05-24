@@ -1,9 +1,0 @@
-{
-  "timeout": 10,
-  "rate_limit": 10,
-  "scan_modules": ["dir_traversal", "sql_injection", "ssrf"],
-  "storage": {
-    "type": "json",
-    "location": "results/"
-  }
-}

@@ -43,3 +43,23 @@ asm-backend/
 ├── README.md                           # Project overview
 
 ```
+
+| Module                       | Status     | Tools / Techniques                         |
+| ---------------------------- | ---------- | ------------------------------------------ |
+| Directory Discovery          | ✅ Planned | ffuf, dirsearch, JS rendering (Playwright) |
+| Vulnerability Scanning       | ✅ Planned | Nuclei, OWASP ZAP, Burp                    |
+| Credential Leaks             | ✅ Planned | Pastebin, GitHub, gitleaks                 |
+| Hardcoded Secrets            | ✅ Planned | Regex + ML                                 |
+| Subdomain Enumeration        | ✅ Planned | Amass, Subfinder                           |
+| JS Analysis                  | ✅ Planned | LinkFinder, Custom Regex                   |
+| Backup File Discovery        | ✅ Planned | Path bruteforce                            |
+| Header Misconfig Detection   | ✅ Planned | SecurityHeaders.io like logic              |
+| Screenshot Recon             | ✅ Planned | Headless Chrome, aquatone                  |
+| Asset Classification         | ✅ Planned | AI/ML or keyword tagging                   |
+| WAF Fingerprinting           | ✅ Planned | WAFW00f, custom detection logic            |
+| API & Swagger Analysis       | ✅ Planned | Swagger Parser, BOLA testing               |
+| CI/CD Integration            | ✅ Planned | GitHub/GitLab CI hooks                     |
+| Real-Time Alerting/Dashboard | ✅ Planned | WebSocket/Kafka + React/Next.js dashboard  |
+| WebAssembly & Mobile Recon   | ✅ Planned | WASM decompilers, APK endpoint enumeration |
+| Privacy Violation Detection  | ✅ Planned | NLP or regex for personal data             |
+| Ai - Ml integration          | ✅ Planned | Gen Ai                                     |

@@ -1,9 +1,0 @@
-fastapi
-uvicorn
-requests
-aiohttp
-python-nmap
-tldextract
-celery
-redis
-aiohttp
