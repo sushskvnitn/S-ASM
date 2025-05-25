@@ -15,6 +15,22 @@ def setup():
         return jsonify({"message": "Environment setup completed successfully"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/dorking', methods=['POST'])
+def dorking():
+    data = request.json
+    target = data.get('target')
+
+    if not target:
+        return jsonify({"error": "Target required"}), 400
+
+    try:
+        from Modules.dorking import googledork
+        results = googledork(target)
+        return jsonify({"message": "Dorking completed", "results": results}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     
 
 @app.route('/start-scan', methods=['POST'])
