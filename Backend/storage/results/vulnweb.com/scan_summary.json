@@ -1,0 +1,20 @@
+{
+  "output": {
+    "domain": "vulnweb.com",
+    "subdomains_found": 1,
+    "ip_ranges": [],
+    "live_hosts": 1,
+    "urls_crawled": 1,
+    "js_links": 0,
+    "risk": {
+      "risk_level": "ERROR"
+    },
+    "total_findings": 0,
+    "findings_breakdown": {
+      "nuclei": 0,
+      "nuclei_dast": 0,
+      "dalfox_xss": 0,
+      "sqlmap_sqli": 0
+    }
+  }
+}
