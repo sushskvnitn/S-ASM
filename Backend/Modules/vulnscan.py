@@ -1,59 +1,65 @@
 import json
 import asyncio
-from typing import List, Dict, Optional
-from Core.Utils import run_command, save_output
 import os
+from typing import List, Dict, Optional
 from datetime import datetime
 
-async def run_single_scan(
+from Core.Utils import run_command, save_output
+
+
+async def _run_single_scan(
     target: str,
-    templates: str,
+    templates: str = "~/nuclei-templates/",
     rate_limit: int = 50,
     notify_config_path: Optional[str] = None,
-    severity_filter: str = "info,low,medium,high,critical"
+    severity_filter: str = "info,low,medium,high,critical",
 ) -> Dict:
-    """Run nuclei scan on a single target with severity filtering and notify support."""
+    """Run a nuclei scan on a single target asynchronously."""
     timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-    output_json_path = f"nuclei_output_{target}_{timestamp}.json"
-    output_txt_path = f"nuclei_output_{target}_{timestamp}.txt"
+    # Sanitise target for use in filenames
+    safe_target = target.replace("://", "_").replace("/", "_").replace(":", "_")
+    output_txt_path = f"nuclei_output_{safe_target}_{timestamp}.txt"
+    output_json_path = f"nuclei_output_{safe_target}_{timestamp}.json"
 
     cmd = (
-        f"echo {target} | nuclei "
+        f"echo '{target}' | nuclei "
         f"-t {templates} "
-        f"-json -rl {rate_limit} "
+        f"-json "
+        f"-rl {rate_limit} "
         f"-severity {severity_filter} "
-        f"-o {output_txt_path} "
+        f"-o {output_txt_path}"
     )
 
     try:
         process = await asyncio.create_subprocess_shell(
             cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
 
         if stderr:
-            print(f"[-] Error scanning {target}: {stderr.decode().strip()}")
+            stderr_text = stderr.decode().strip()
+            if stderr_text:
+                print(f"[-] Nuclei stderr for {target}: {stderr_text}")
 
-        # Save raw JSON output
         findings = []
         for line in stdout.decode().strip().splitlines():
-            if line.strip():
-                try:
-                    findings.append(json.loads(line))
-                except json.JSONDecodeError as e:
-                    print(f"[-] JSON decode error for {target}: {e}")
-        
-        # Save to disk
-        save_output("nuclei", target, findings)
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                findings.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass  # nuclei may emit non-JSON progress lines
 
-        # Write raw JSON to file (for later analysis)
+        # Persist results
+        save_output("nuclei", target, findings)
         with open(output_json_path, "w") as f:
             json.dump(findings, f, indent=2)
 
-        # Notify if configured and findings exist
-        if notify_config_path and findings:
+        # Optional: send notifications
+        if notify_config_path and findings and os.path.isfile(notify_config_path):
             notify_cmd = (
                 f"cat {output_txt_path} | "
                 f"notify -pc {notify_config_path} "
@@ -69,7 +75,7 @@ async def run_single_scan(
         }
 
     except Exception as e:
-        print(f"[-] Exception while scanning {target}: {e}")
+        print(f"[-] Exception scanning {target}: {e}")
         return {"target": target, "error": str(e)}
 
 
@@ -77,30 +83,43 @@ async def run_nuclei_scan(
     targets: List[str],
     templates: str = "~/nuclei-templates/",
     notify_config_path: Optional[str] = None,
-    severity_filter: str = "info,low,medium,high,critical"
+    severity_filter: str = "info,low,medium,high,critical",
 ) -> List[Dict]:
-    """Run concurrent nuclei scans on multiple targets with notification and output saving."""
-    print(f"[+] Running Nuclei scan on {len(targets)} targets...")
+    """Run concurrent nuclei scans on multiple targets."""
+    print(f"[+] Running Nuclei scan on {len(targets)} target(s)…")
 
-    semaphore = asyncio.Semaphore(10)  # Limit concurrent scans
+    semaphore = asyncio.Semaphore(10)
 
-    async def scan_with_limit(target):
+    async def _bounded(target):
         async with semaphore:
-            return await run_single_scan(target, templates, notify_config_path=notify_config_path, severity_filter=severity_filter)
+            return await _run_single_scan(
+                target,
+                templates=templates,
+                notify_config_path=notify_config_path,
+                severity_filter=severity_filter,
+            )
 
-    tasks = [scan_with_limit(target) for target in targets]
-    results = await asyncio.gather(*tasks)
-    save_output("nuclei", "aggregated", results)
-    return results
+    tasks = [_bounded(t) for t in targets]
+    results = await asyncio.gather(*tasks, return_exceptions=False)
+    save_output("nuclei", "aggregated", list(results))
+    return list(results)
 
 
 def run_nuclei_scan_sync(
     targets: List[str],
     templates: str = "~/nuclei-templates/",
     notify_config_path: Optional[str] = None,
-    severity_filter: str = "info,low,medium,high,critical"
+    severity_filter: str = "info,low,medium,high,critical",
 ) -> List[Dict]:
-    """Synchronous wrapper for running nuclei scans with severity filter and notify."""
+    """
+    Synchronous wrapper for nuclei scans.
+    Safe to call from Celery workers (no existing event loop).
+    """
     return asyncio.run(
-        run_nuclei_scan(targets, templates, notify_config_path=notify_config_path, severity_filter=severity_filter)
+        run_nuclei_scan(
+            targets,
+            templates=templates,
+            notify_config_path=notify_config_path,
+            severity_filter=severity_filter,
+        )
     )

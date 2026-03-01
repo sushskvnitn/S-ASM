@@ -2,11 +2,13 @@ import asyncio
 import json
 from Core.Utils import save_output
 
-async def async_subfinder_scan(target, timeout=120):
+
+async def async_subfinder_scan(target: str, timeout: int = 120) -> list:
+    """Run a passive Subfinder scan and return unique subdomains."""
     print(f"[+] Running Subfinder passive scan on: {target}")
 
     cmd = ["subfinder", "-d", target, "-silent", "-nW", "-timeout", "30"]
-    
+
     try:
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -25,7 +27,7 @@ async def async_subfinder_scan(target, timeout=120):
         raw_output = stdout.decode()
         subdomains = list(set(
             line.strip() for line in raw_output.splitlines()
-            if line.strip() and '.' in line
+            if line.strip() and "." in line
         ))
 
         save_output("subfinder", target, subdomains)
@@ -41,7 +43,9 @@ async def async_subfinder_scan(target, timeout=120):
         save_output("subfinder_exception", target, str(e))
         return []
 
-def subdomain_scan(target):
+
+def subdomain_scan(target: str) -> list:
+    """Synchronous entry point for standalone subdomain scans."""
     try:
         return asyncio.run(async_subfinder_scan(target))
     except Exception as e:

@@ -1,41 +1,50 @@
-from celery_worker import celery
-from Modules.dirbuster import smart_crawler
-from Modules.js_crawler import js_linkfinder
-from Modules.vulnscan import run_nuclei_scan
-from Core.Utils import save_output
+"""
+scanner_tasks.py
+Celery tasks that orchestrate a full ASM scan pipeline.
+
+Import chain (no circular imports):
+    asm_tasks  →  (no app imports)
+    celery_worker  →  asm_tasks, scanner_tasks
+    scanner_tasks  →  asm_tasks  (celery app only)
+"""
 
 import asyncio
 import json
 import logging
-import shutil  # Ensure shutil is imported here for checking command availability
+import shutil
+
+from asm_tasks import celery  # import the Celery app directly — breaks the circular chain
+from Modules.dirbuster import smart_crawler
+from Modules.js_crawler import js_linkfinder
+from Modules.vulnscan import run_nuclei_scan_sync  # use the sync wrapper
+from Core.Utils import save_output
 
 logger = logging.getLogger(__name__)
 
 
-async def async_subfinder_scan(domain: str, timeout: int = 600) -> list:
-    """Run Subfinder scan asynchronously with JSON output and timeout."""
-    cmd = ["subfinder", "-d", domain, "-silent", "-all", "-json"]
-    logger.info(f"[*] Running Subfinder scan on: {domain}")
-    logger.debug(f"Subfinder command: {' '.join(cmd)}")
-    # Ensure the command is executable
+# ---------------------------------------------------------------------------
+# Subfinder helpers
+# ---------------------------------------------------------------------------
+
+async def _async_subfinder_scan(domain: str, timeout: int = 600) -> list:
+    """Run Subfinder asynchronously and return a deduplicated list of hosts."""
     if not shutil.which("subfinder"):
-        logger.error("Subfinder is not installed or not in PATH.")
+        logger.error("subfinder is not installed or not in PATH.")
         return []
 
-    if not shutil.which("subfinder"):
-        logger.error("Subfinder is not installed or not in PATH.")
-        return []
-    
-    process = await asyncio.create_subprocess_exec(  # Create the subprocess
+    cmd = ["subfinder", "-d", domain, "-silent", "-all", "-json"]
+    logger.info(f"[*] Running Subfinder on: {domain}")
+
+    process = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    logger.debug(f"Subfinder process started with PID: {process.pid}")
+
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
-        logger.warning(f"Subfinder scan timed out for {domain}")
+        logger.warning(f"Subfinder timed out for {domain}")
         process.kill()
         await process.communicate()
         return []
@@ -46,43 +55,78 @@ async def async_subfinder_scan(domain: str, timeout: int = 600) -> list:
 
     subdomains = []
     for line in stdout.decode().splitlines():
+        line = line.strip()
+        if not line:
+            continue
         try:
             data = json.loads(line)
-            subdomains.append(data.get("host"))
+            host = data.get("host")
+            if host:
+                subdomains.append(host)
         except json.JSONDecodeError:
-            logger.warning(f"[!] Failed to parse JSON from subfinder: {line}")
-            continue
+            # Subfinder sometimes emits plain text lines (e.g. progress info)
+            # treat non-JSON lines as raw hostnames if they look like domains
+            if "." in line and " " not in line:
+                subdomains.append(line)
 
     subdomains = list(set(filter(None, subdomains)))
     save_output("subfinder", domain, subdomains)
-    logger.info(f"[+] Found {len(subdomains)} subdomains.")
+    logger.info(f"[+] Found {len(subdomains)} subdomains for {domain}.")
     return subdomains
 
 
-def sync_subfinder_wrapper(domain: str) -> list:
-    """Synchronous wrapper for async Subfinder scan."""
+def _sync_subfinder(domain: str) -> list:
+    """Synchronous wrapper around the async Subfinder scan."""
     try:
-        return asyncio.run(async_subfinder_scan(domain))
+        return asyncio.run(_async_subfinder_scan(domain))
     except Exception as e:
-        logger.error(f"Subfinder exception: {e}")
+        logger.error(f"Subfinder wrapper exception: {e}")
         return []
 
 
-@celery.task(name='tasks.scanner_tasks.run_full_scan', soft_time_limit=1800, time_limit=1900)
-def run_full_scan(domain):
-    logger.info(f"[*] Starting scan for {domain}")
+# ---------------------------------------------------------------------------
+# Celery task
+# ---------------------------------------------------------------------------
 
-    subdomains = sync_subfinder_wrapper(domain)
+@celery.task(
+    name='tasks.scanner_tasks.run_full_scan',
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=1900,
+)
+def run_full_scan(self, domain: str) -> str:
+    """
+    Full scan pipeline:
+      1. Subdomain enumeration (Subfinder)
+      2. Web crawling (Katana + httpx)
+      3. JS endpoint discovery (LinkFinder)
+      4. Vulnerability scanning (Nuclei)
+    """
+    logger.info(f"[*] Starting full scan for: {domain}")
+
+    # 1. Subdomain enumeration
+    subdomains = _sync_subfinder(domain)
     all_targets = list(set(subdomains + [domain]))
-    logger.info(f"[+] {len(all_targets)} targets to scan")
+    logger.info(f"[+] {len(all_targets)} total targets to scan.")
 
+    # 2 & 3. Crawl + JS analysis per target
     for target in all_targets:
-        smart_crawler(target)
-        js_linkfinder(target)
+        try:
+            smart_crawler(target)
+        except Exception as e:
+            logger.error(f"smart_crawler error on {target}: {e}")
 
+        try:
+            js_linkfinder(target)
+        except Exception as e:
+            logger.error(f"js_linkfinder error on {target}: {e}")
 
-    run_nuclei_scan(all_targets)
+    # 4. Vulnerability scanning — use the synchronous wrapper so we don't
+    #    call asyncio.run() inside an already-running event loop.
+    try:
+        run_nuclei_scan_sync(all_targets)
+    except Exception as e:
+        logger.error(f"Nuclei scan error: {e}")
 
-    
-
+    logger.info(f"[+] Scan complete for: {domain}")
     return f"Completed scan for {domain}"

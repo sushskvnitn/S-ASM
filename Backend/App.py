@@ -4,9 +4,11 @@ from Core.environmentsetup import setup_environment
 
 app = Flask(__name__)
 
+
 @app.route('/')
 def index():
     return jsonify({"message": "Welcome to the Vulnerability Scanner API"}), 200
+
 
 @app.route('/setup', methods=['POST'])
 def setup():
@@ -26,12 +28,13 @@ def dorking():
         return jsonify({"error": "Target required"}), 400
 
     try:
-        from Modules.dorking import googledork
-        results = googledork(target)
+        # Fix: use the correct function name from dorking module
+        from Modules.dorking import run_dorking_module
+        results = run_dorking_module(target)
         return jsonify({"message": "Dorking completed", "results": results}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
 
 @app.route('/start-scan', methods=['POST'])
 def start_scan():
@@ -41,8 +44,11 @@ def start_scan():
     if not target:
         return jsonify({"error": "Target required"}), 400
 
-    result = run_tasks(target)
-    return jsonify({"message": "Scan started", "result": result})
+    try:
+        result = run_tasks(target)
+        return jsonify({"message": "Scan started", "result": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

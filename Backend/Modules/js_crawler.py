@@ -1,16 +1,18 @@
 import asyncio
 from Core.Utils import save_output
 
-async def async_js_linkfinder(target, timeout=60):
+
+async def async_js_linkfinder(target: str, timeout: int = 60) -> list:
+    """Run LinkFinder against a target and return discovered HTTP endpoints."""
     print(f"[+] Crawling JS for {target}")
-    
+
     cmd = ["linkfinder", "-i", f"http://{target}", "-o", "cli"]
 
     try:
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
@@ -40,7 +42,9 @@ async def async_js_linkfinder(target, timeout=60):
         save_output("linkfinder_exception", target, str(e))
         return []
 
-def js_linkfinder(target):
+
+def js_linkfinder(target: str) -> list:
+    """Synchronous wrapper for standalone JS crawling."""
     try:
         return asyncio.run(async_js_linkfinder(target))
     except Exception as e:

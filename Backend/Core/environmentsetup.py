@@ -32,17 +32,17 @@ TOOLS = {
         "check": "redis-server",
         "install": "sudo apt-get update && sudo apt-get install -y redis-server"
     },
-    'GoogDork': {
-        "check": "googdork",
-        "install": (
-            "mkdir -p ~/tools && "
-            "git clone https://github.com/iamj0ker/GoogD0rker.git ~/tools/GoogD0rker && "
-            "cd ~/tools/GoogD0rker && "
-            "pip install -r requirements.txt && "
-            "chmod +x googdork.py && "
-            "sudo ln -sf $(pwd)/googdork.py /usr/local/bin/googdork"
-        )
-    }
+    # 'GoogDork': {
+    #     "check": "googdork",
+    #     "install": (
+    #         "mkdir -p ~/tools && "
+    #         "git clone https://github.com/iamj0ker/GoogD0rker.git ~/tools/GoogD0rker && "
+    #         "cd ~/tools/GoogD0rker && "
+    #         "pip install -r requirements.txt && "
+    #         "chmod +x googdork.py && "
+    #         "sudo ln -sf $(pwd)/googdork.py /usr/local/bin/googdork"
+    #     )
+    # }
 }
 
 
